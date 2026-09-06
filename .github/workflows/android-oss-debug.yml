@@ -94,7 +94,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           test -n "$KEYSTORE_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 is missing"; exit 1; }
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/orange-cloud-update.jks"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/orange-cloud-update.jks"
 
       - name: Sign APK with permanent key
         if: steps.upstream.outputs.changed == 'true' || github.event_name != 'schedule'
@@ -104,6 +104,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\r\n')"
+          KEY_ALIAS="$(printf '%s' "$KEY_ALIAS" | tr -d '\r\n')"
+          KEY_PASSWORD="$(printf '%s' "$KEY_PASSWORD" | tr -d '\r\n')"
+          export KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+
           test -n "$KEYSTORE_PASSWORD" || { echo "ANDROID_KEYSTORE_PASSWORD is missing"; exit 1; }
           test -n "$KEY_ALIAS" || { echo "ANDROID_KEY_ALIAS is missing"; exit 1; }
           test -n "$KEY_PASSWORD" || { echo "ANDROID_KEY_PASSWORD is missing"; exit 1; }
