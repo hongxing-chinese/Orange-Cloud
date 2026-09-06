@@ -8,12 +8,12 @@ import jiamin.chen.orangecloud.BuildConfig
  * Cloudflare OAuth 只接受 https redirect，指向 Web 后端回调中转，再 302 跳回自定义 scheme。
  */
 object OAuthConfig {
-    /** 官方 Client 为 PKCE 公开客户端（非机密）；oss 风味默认空串。 */
+    /** OAuth PKCE 的 Client ID 是公开标识符，由 Gradle 按构建风味注入。 */
     val clientId: String = BuildConfig.OAUTH_CLIENT_ID
 
     const val CALLBACK_SCHEME = "orangecloud"
     const val CALLBACK_HOST = "oauth"
-    const val REDIRECT_URI = "https://o-c.do/oauth/callback"
+    val REDIRECT_URI: String = BuildConfig.OAUTH_REDIRECT_URI
 
     const val AUTHORIZATION_URL = "https://dash.cloudflare.com/oauth2/auth"
     /** 网页登出端点：添加账号时先登出再续跳授权页，避免复用上一个登录态（支持 ?to= 续跳）。 */
