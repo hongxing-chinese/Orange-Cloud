@@ -60,10 +60,13 @@ jobs:
         if: steps.upstream.outputs.changed == 'true' || github.event_name != 'schedule'
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Set up Android SDK command-line tools
+        if: steps.upstream.outputs.changed == 'true' || github.event_name != 'schedule'
+        uses: android-actions/setup-android@v4
+
       - name: Install Android SDK packages
         if: steps.upstream.outputs.changed == 'true' || github.event_name != 'schedule'
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Build OSS debug APK
@@ -128,3 +131,19 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+      - name: Publish APK to GitHub Releases
+        if: steps.upstream.outputs.changed == 'true' || github.event_name != 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_TAG="oss-debug-${VERSION_CODE}-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          COMMIT_SHA=$(git rev-parse HEAD)
+          gh release create "$RELEASE_TAG" \
+            "orange-cloud-oss-debug.apk#Orange Cloud OSS Debug APK" \
+            --target "$COMMIT_SHA" \
+            --title "Orange Cloud OSS Debug ${VERSION_CODE}" \
+            --notes "Automated OSS debug APK. Version code: ${VERSION_CODE}. Commit: ${COMMIT_SHA}." \
+            --prerelease \
+            --latest=false
