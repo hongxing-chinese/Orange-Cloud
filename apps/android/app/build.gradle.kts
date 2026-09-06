@@ -19,8 +19,8 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun oauthClientId(default: String): String =
-    localProps.getProperty("OAUTH_CLIENT_ID")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("OAUTH_CLIENT_ID").orNull?.takeIf { it.isNotBlank() }
+    localProps.getProperty("OAUTH_CLIENT_ID")?.trim()?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("OAUTH_CLIENT_ID").orNull?.trim()?.takeIf { it.isNotBlank() }
         ?: default
 
 fun oauthRedirectUri(defaultDomain: String): String {
