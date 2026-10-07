@@ -1,7 +1,7 @@
 # Orange Cloud — Android
 
 原生 Kotlin + Jetpack Compose 客户端。设计与价值同源于 iOS 版，功能与交互以 Android 原生为先（不追求与 iOS 一一对应）。
-最低 Android 12（API 31），目标 / 编译 API 36。
+最低 Android 8（API 26），目标 / 编译 API 36。
 
 ## 先决条件
 
@@ -38,23 +38,28 @@ cd apps/android
 ./gradlew :app:testPlayDebugUnitTest  # 单测
 ```
 
-两个产品风味：
+三个产品风味：
 
 | 风味 | applicationId | 说明 |
 |---|---|---|
 | `play` | `jiamin.chen.orangecloud` | 官方版，Play Billing，内置官方 OAuth Client |
-| `oss` | `jiamin.chen.orangecloud.oss` | 自编译全解锁，无 Billing 依赖，需自填 OAuth Client |
+| `oss` | `jiamin.chen.orangecloud.oss` | 自用全解锁，无 Billing 依赖，默认个人 OAuth 配置 |
+| `direct` | `jiamin.chen.orangecloud.direct` | 官网直发版，无 Play Billing，使用激活码 |
 
-## OAuth Client 注入
+## OAuth Client 与回调地址
 
-`OAUTH_CLIENT_ID` 经 Gradle 注入到 `BuildConfig`：
+`OAUTH_CLIENT_ID` 与 `OAUTH_DOMAIN` 经 Gradle 注入到 `BuildConfig`。`oss` 默认使用个人 OAuth Client 和 `oauth.wideseek.de5.net` 回调中转；授权完成后，中转服务应将浏览器重定向到 `orangecloud://oauth/callback`。
 
 - `play` 风味内置官方 Client ID——OAuth PKCE 下它是公开标识符而非机密，与 iOS `OAuthConfig.swift` 同值。
-- `oss` 风味默认空串。自编译者须在 `apps/android/local.properties` 填入自建的 Client ID：
+- `oss` 风味使用个人默认配置。自编译者可以在 `apps/android/local.properties` 覆盖 Client ID 和回调域名：
   ```properties
   OAUTH_CLIENT_ID=你自建的_client_id
+  OAUTH_DOMAIN=oauth.example.com
   ```
-  并部署自己的回调中转——官方 Client 与 `o-c.do` 中转不向第三方构建开放，详见根目录 [`CONTRIBUTING.md`](../../CONTRIBUTING.md)。
+- 也可以通过 Gradle 参数 `-POAUTH_CLIENT_ID=... -POAUTH_DOMAIN=...` 覆盖。`OAUTH_DOMAIN` 只填主机名，构建会生成 `https://<主机名>/oauth/callback`。
+- GitHub Actions 的 OSS APK 工作流可用仓库 Secret `OAUTH_CLIENT_ID` 和变量 `OAUTH_DOMAIN` 覆盖默认值；官方 Client 与 `o-c.do` 中转不向第三方构建开放，详见根目录 [`CONTRIBUTING.md`](../../CONTRIBUTING.md)。
+
+工作流签名需要配置仓库 Secrets：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。OAuth Client ID 是 PKCE 公开标识符，不是密钥。
 
 ## 架构
 

@@ -16,6 +16,13 @@ xcuserdata/
 .env.local
 .env*.local
 
+# Local Android credentials
+*.jks
+*.keystore
+*.p12
+apps/android/local.properties
+apps/android/keystore.properties
+
 # OS
 .DS_Store
 

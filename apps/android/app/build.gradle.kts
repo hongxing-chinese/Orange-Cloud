@@ -9,17 +9,44 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// 官方 OAuth Client（PKCE 公开客户端，非机密；与 iOS OAuthConfig.swift 同值）。
-// oss 自编译者在 local.properties 覆盖 OAUTH_CLIENT_ID 并自建回调，官方 Client 不向第三方构建开放。
+// play/direct 使用官方 OAuth Client（PKCE 公开客户端，非机密；与 iOS OAuthConfig.swift 同值）。
+// oss 使用个人 Client 与回调中转；自编译者可在 local.properties 或 Gradle 参数中覆盖。
 val officialOAuthClientId = "102240eb9095a1965ee11813ef4788cd"
+val personalOAuthClientId = "bb7cbe5b7f81ff5e36908db666b1d404"
+val officialOAuthDomain = "o-c.do"
+val personalOAuthDomain = "oauth.wideseek.de5.net"
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun oauthClientId(default: String): String =
-    localProps.getProperty("OAUTH_CLIENT_ID")
-        ?: providers.gradleProperty("OAUTH_CLIENT_ID").orNull
+    localProps.getProperty("OAUTH_CLIENT_ID")?.trim()?.takeIf { it.isNotEmpty() }
+        ?: providers.gradleProperty("OAUTH_CLIENT_ID").orNull?.trim()?.takeIf { it.isNotEmpty() }
         ?: default
+
+fun configuredOAuthDomain(defaultDomain: String): String =
+    localProps.getProperty("OAUTH_DOMAIN")?.trim()?.takeIf { it.isNotEmpty() }
+        ?: providers.gradleProperty("OAUTH_DOMAIN").orNull?.trim()?.takeIf { it.isNotEmpty() }
+        ?: defaultDomain
+
+fun oauthRedirectUri(configuredDomain: String): String {
+    val domain = configuredDomain.trim().removeSuffix("/")
+    require(
+        domain.isNotEmpty() &&
+            !domain.contains("://") &&
+            !domain.contains("/") &&
+            !domain.contains("?") &&
+            !domain.contains("#") &&
+            !domain.contains("@") &&
+            domain.none { it.isWhitespace() },
+    ) {
+        "OAUTH_DOMAIN must be a hostname without scheme, path, query, or fragment"
+    }
+    return "https://$domain/oauth/callback"
+}
+
+fun buildConfigString(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")}\""
 
 // FCM（推送）配置：官方 play/direct 构建从 local.properties / -P 注入；缺省空串 = 推送不初始化（优雅降级）。
 fun buildProp(key: String, default: String = ""): String =
@@ -65,13 +92,14 @@ android {
         // 实况通知促升(API36) 均 if-guard 渐进增强，Android 8–11 落固定品牌调色板与常驻通知回退。
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
+        versionCode = providers.gradleProperty("BUILD_VERSION_CODE").orNull?.toIntOrNull() ?: 28
         versionName = "2.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // OAuth 回调（Web 后端 302 跳回的自定义 scheme）
         manifestPlaceholders["oauthScheme"] = "orangecloud"
         manifestPlaceholders["oauthHost"] = "oauth"
+        buildConfigField("String", "OAUTH_REDIRECT_URI", buildConfigString(oauthRedirectUri(officialOAuthDomain)))
 
         // FCM（推送）：4 项来自 Firebase 项目（Web/Android 应用）。空串 = 推送不初始化。
         buildConfigField("String", "FCM_PROJECT_ID", "\"${buildProp("FCM_PROJECT_ID")}\"")
@@ -86,7 +114,7 @@ android {
             dimension = "distribution"
             buildConfigField("boolean", "IS_OSS", "false")
             buildConfigField("boolean", "IS_DIRECT", "false")
-            buildConfigField("String", "OAUTH_CLIENT_ID", "\"${oauthClientId(officialOAuthClientId)}\"")
+            buildConfigField("String", "OAUTH_CLIENT_ID", buildConfigString(oauthClientId(officialOAuthClientId)))
         }
         create("oss") {
             dimension = "distribution"
@@ -94,8 +122,13 @@ android {
             versionNameSuffix = "-oss"
             buildConfigField("boolean", "IS_OSS", "true")
             buildConfigField("boolean", "IS_DIRECT", "false")
-            // oss 默认不带官方 Client；自编译者用 local.properties 填
-            buildConfigField("String", "OAUTH_CLIENT_ID", "\"${oauthClientId("")}\"")
+            // 自用 OSS 默认走个人 OAuth Client；可由 local.properties / -P / GitHub Actions 覆盖。
+            buildConfigField("String", "OAUTH_CLIENT_ID", buildConfigString(oauthClientId(personalOAuthClientId)))
+            buildConfigField(
+                "String",
+                "OAUTH_REDIRECT_URI",
+                buildConfigString(oauthRedirectUri(configuredOAuthDomain(personalOAuthDomain))),
+            )
             // oss 不带官方 FCM 配置（即便 local.properties 有也清空，避免官方推送凭证进开源构建）
             buildConfigField("String", "FCM_PROJECT_ID", "\"\"")
             buildConfigField("String", "FCM_APP_ID", "\"\"")
@@ -110,7 +143,7 @@ android {
             versionNameSuffix = "-direct"
             buildConfigField("boolean", "IS_OSS", "false")
             buildConfigField("boolean", "IS_DIRECT", "true")
-            buildConfigField("String", "OAUTH_CLIENT_ID", "\"${oauthClientId(officialOAuthClientId)}\"")
+            buildConfigField("String", "OAUTH_CLIENT_ID", buildConfigString(oauthClientId(officialOAuthClientId)))
             // direct 不走 FCM（Firebase 只注册了 play 包名；FCM App ID 绑定包名，direct 用
             // play 的会不合规且国内环境 FCM 不可达）——清空即推送中心优雅降级，其余功能不受影响
             buildConfigField("String", "FCM_PROJECT_ID", "\"\"")
